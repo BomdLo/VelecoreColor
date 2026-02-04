@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Velecore Resolve Elite</title>
+<style>
+    :root { --bg: #111; --panel: #1c1c1c; --accent: #db9612; --border: #333; --text: #aaa; }
+    body { background: var(--bg); color: var(--text); font-family: "Segoe UI", sans-serif; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+    header { background: #252525; height: 40px; display: flex; align-items: center; padding: 0 15px; border-bottom: 1px solid #000; justify-content: space-between; font-size: 12px; }
+    .workspace { flex: 1; display: grid; grid-template-columns: 280px 1fr 280px; overflow: hidden; }
+    .viewer { display: flex; justify-content: center; align-items: center; background: #080808; border: 1px solid #000; }
+    #mainCanvas { max-width: 95%; max-height: 95%; box-shadow: 0 0 50px #000; }
+    footer { background: var(--panel); height: 350px; border-top: 1px solid #000; display: flex; flex-direction: column; }
+    .tab-bar { background: #2a2a2a; height: 30px; display: flex; align-items: center; padding: 0 10px; font-size: 11px; gap: 20px; border-bottom: 1px solid #000; }
+    .tab-item.active { color: var(--accent); border-bottom: 2px solid var(--accent); height: 100%; display: flex; align-items: center; }
+    .controls-container { display: grid; grid-template-columns: 1fr 350px; flex: 1; }
+    .wheels-grid {
+    display: flex;
+    justify-content: space-evenly; /* 改為均分空間 */
+    align-items: center;
+    padding: 5px; /* 減少內邊距 */
+    width: 100%;
+}
+
+    .wheel-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1; /* 平分剩餘空間 */
+}
+    .wheel {
+    /* 使用動態寬度，並保持 1:1 比例 */
+    width: 14vw; /* 根據視窗寬度調整，大約會是原本的 1.5 倍 */
+    max-width: 180px; /* 設定上限防止在超寬螢幕太大 */
+    aspect-ratio: 1 / 1;
+    height: auto; /* 讓比例決定高度 */
+
+    border-radius: 50%;
+    border: 3px solid #383838; /* 稍微加粗邊框，更有質感 */
+    position: relative;
+    background: radial-gradient(circle, #222 10%, #333 100%);
+    cursor: crosshair;
+}
+    .wheel::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 50%; background: conic-gradient(from 0deg, red, yellow, lime, cyan, blue, magenta, red); opacity: 0.15; pointer-events: none; }
+    .knob { width: 8px; height: 8px; background: white; border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); box-shadow: 0 0 4px #000; pointer-events: none; }
+    .wheel-label { margin-top: 10px; font-size: 10px; color: #888; }
+    .slider-bank { padding: 15px; border-left: 1px solid #000; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+    .slider-bank::-webkit-scrollbar { width: 4px; }
+    .slider-bank::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
+    .adj-row { display: flex; justify-content: space-between; align-items: center; font-size: 10px; min-height: 22px; }
+    .adj-row span { width: 80px; flex-shrink: 0; }
+    input[type=range] { flex: 1; height: 3px; appearance: none; background: #333; outline: none; }
+    input[type=range]::-webkit-slider-thumb { appearance: none; width: 10px; height: 10px; background: var(--accent); border-radius: 50%; cursor: pointer; }
+    #scopeCanvas { width: 100%; height: 180px; background: #050505; margin-top: 5px; }
+    .btn { background: #333; color: #fff; border: 1px solid #444; padding: 4px 10px; font-size: 10px; cursor: pointer; border-radius: 2px; }
+    .btn-bypass.active { background: var(--accent); color: #000; font-weight: bold; }
+    /* 新增：面板切換邏輯 */
+.panel-content {
+    display: none;
+    flex: 1;
+}
+.panel-content.active-panel {
+    display: flex;
+}
+
+/* 曲線佈局樣式 */
+.curves-layout {
+    display: flex;
+    padding: 15px;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.curve-canvas-wrapper {
+    position: relative;
+    padding: 5px;
+    background: #000;
+    border: 1px solid var(--border);
+}
+
+#curveUI {
+    background-color: #050505;
+    /* 專業網格背景 */
+    background-image:
+        linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+    background-size: 64px 64px;
+    cursor: crosshair;
+}
+
+.curve-buttons {
+    display: flex;
+    gap: 4px;
+    margin-top: 10px;
+}
+
+.c-btn {
+    background: #252525;
+    border: 1px solid #444;
+    color: #888;
+    font-size: 10px;
+    padding: 4px 10px;
+    cursor: pointer;
+    border-radius: 2px;
+}
+
+.c-btn.active {
+    border-color: var(--accent);
+    color: #fff !important;
+    background: #333;
+}
+
+.curve-stats {
+    width: 120px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.curve-val-box {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #666;
+}
+
+.curve-val-box span { color: var(--accent); }
+
+/* 修正 tab-item 的游標 */
+.tab-item { cursor: pointer; transition: opacity 0.2s; }
+
+/* 當 body 標籤有 .is-exporting 類別時，除了 exportBtn 以外所有按鈕失效 */
+body.is-exporting button:not(#exportBtn),
+body.is-exporting input,
+body.is-exporting select,
+body.is-exporting .wheel,
+body.is-exporting #curveUI {
+    pointer-events: none; /* 禁用點擊 */
+    opacity: 0.5;         /* 變淡顯示禁用狀態 */
+    cursor: not-allowed;
+}
+
+/* 為了讓視覺更清楚，我們在導出時讓畫布邊框發紅光 */
+body.is-exporting #mainCanvas {
+    outline: 3px solid #d33;
+    transition: outline 0.3s;
+}
+
+#videoControls {
+    position: absolute;
+    bottom: 0; /* 貼齊畫布底部 */
+    left: 0;
+    width: 100%; /* 強制與父層（即畫布容器）同寬 */
+    height: 36px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 15px;
+    background: rgba(20, 20, 20, 0.8);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid rgba(255,255,255,0.1);
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 100;
+}
+
+/* 當滑鼠移入整個 Viewer 容器時顯示 */
+#viewerContainer:hover #videoControls {
+    opacity: 1;
+}
+
+/* 讓進度條填滿剩餘空間 */
+#progressBar {
+    flex: 1;
+    cursor: pointer;
+    height: 4px;
+    accent-color: var(--accent); /* 使用你定義的橘金色 */
+}
+
+.mode-switcher .btn.active {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+}
+
+.step-item { font-size: 11px; color: #666; cursor: pointer; }
+.step-item.active { color: var(--accent); font-weight: bold; }
+
+.filter-card:hover {
+    border-color: var(--accent) !important;
+    transform: scale(1.02);
+}
+
+/* 專業模式與快編模式的主麵板隱藏邏輯 */
+#panelExpress { display: none; }
+#panelStudio { display: none; }
+
+.active-panel { display: flex !important; }
+</style>
+</head>
+<body>
+
+<header>
+    <div>VELECORE RESOLVE <span style="color:#666; margin-left:10px;">Primary Color Wheels</span></div>
+    <div>
+        <button id="exportBtn" class="btn" style="background:#285; color:#fff; margin-right:10px;">EXPORT</button>
+        <button id="bypassBtn" class="btn btn-bypass">BYPASS (OFF)</button>
+        <button id="cinematicBtn" class="btn" style="margin-left:5px;">CINEMATIC LOOK</button>
+        <label class="btn">IMPORT <input type="file" id="fi" accept="video/*" style="display:none"></label>
+        <label class="btn" style="margin-left:5px;">LOAD LUT <input type="file" id="lutFi" accept=".cube" style="display:none"></label>
+        <select id="lutSelect" class="btn" style="background:#333; color:#fff; border:1px solid #555;">
+            <option value="">- SELECT PRESET LUT -</option>
+            <option value="Applelog_Classic Neg">Apple Log to Classic Neg(only for applelog)</option>
+            <option value="teal_orange">teal_orange</option>
+        </select>
+        <button id="resetBtn" class="btn" style="margin-left:5px;">RESET ALL</button>
+    </div>
+</header>
+<div class="mode-switcher" style="background:#1a1a1a; display:flex; justify-content:center; gap:20px; padding:10px 0; border-bottom:1px solid #000;">
+    <button id="btnExpress" class="btn active" style="width:120px;">EXPRESS (快編)</button>
+    <button id="btnStudio" class="btn" style="width:120px;">STUDIO (專業)</button>
+</div>
+
+<div class="workspace">
+    <div class="side-panel">
+        <div style="padding:10px; font-size:10px; background:#252525;">SCOPES - RGB PARADE</div>
+        <canvas id="scopeCanvas"></canvas>
+    </div>
+
+    <div class="viewer" id="viewerContainer" style="position: relative; flex-direction: column; align-items: center;">
+        <div style="position: relative; width: 95%; display: flex; flex-direction: column; align-items: center;">
+            <canvas id="mainCanvas" style="width: 100%; height: auto;"></canvas>
+
+            <div id="videoControls" style="width: 100%; box-sizing: border-box;">
+                <button id="playPauseBtn">▶</button>
+                <input type="range" id="progressBar" min="0" max="100" value="0">
+                <span id="timeDisplay">00:00 / 00:00</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="side-panel">
+        <div style="padding:10px; font-size:10px; background:#252525;">INFO</div>
+        <div id="stats" style="padding:15px; font-size:11px; color:#666; line-height:2;">
+            Format: Rec.709<br>Gamma: 2.4<br>Resolution: <span id="res">-</span>
+        </div>
+    </div>
+</div>
+
+<footer>
+    <div id="panelStudio" style="display: none; flex-direction: column; height: 100%;">
+        <div class="tab-bar">
+            <div class="tab-item active" id="tabWheels" style="cursor:pointer">PRIMARIES WHEELS</div>
+            <div class="tab-item" id="tabCurves" style="cursor:pointer; opacity:0.3">RGB CURVES</div>
+            <div class="tab-item" id="tabHSL" style="opacity:0.3">HSL MIXER</div>
+        </div>
+
+        <div class="controls-container">
+            <div class="main-controls" style="flex: 1; display: flex; overflow: hidden;">
+                <div id="panelWheels" class="panel-content active-panel" style="width: 100%;">
+                    <div class="wheels-grid">
+                        <div class="wheel-box"><div class="wheel" id="liftW"><div class="knob"></div></div><div class="wheel-label">LIFT</div></div>
+                        <div class="wheel-box"><div class="wheel" id="gammaW"><div class="knob"></div></div><div class="wheel-label">GAMMA</div></div>
+                        <div class="wheel-box"><div class="wheel" id="gainW"><div class="knob"></div></div><div class="wheel-label">GAIN</div></div>
+                        <div class="wheel-box"><div class="wheel" id="offsetW"><div class="knob"></div></div><div class="wheel-label">OFFSET</div></div>
+                    </div>
+                </div>
+
+                <div id="panelCurves" class="panel-content" style="width: 100%;">
+                    <div class="curves-layout">
+                        <div class="curve-canvas-wrapper">
+                            <canvas id="curveUI" width="256" height="256"></canvas>
+                            <div class="curve-buttons">
+                                <button class="c-btn active" data-type="Y">Y</button>
+                                <button class="c-btn" data-type="R" style="color:#f44">R</button>
+                                <button class="c-btn" data-type="G" style="color:#4f4">G</button>
+                                <button class="c-btn" data-type="B" style="color:#44f">B</button>
+                            </div>
+                        </div>
+                        <div class="curve-stats">
+                            <div style="color:var(--accent); font-size:10px; border-bottom:1px solid #333; padding-bottom:5px;">CURVE DATA</div>
+                            <div class="curve-val-box">IN: <span id="curveIn">0</span></div>
+                            <div class="curve-val-box">OUT: <span id="curveOut">0</span></div>
+                            <button id="resetCurveBtn" class="btn" style="margin-top:10px;">RESET</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="panelHSL" class="panel-content" style="width: 100%;">
+                    <div id="hslContainer" class="hsl-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 15px; overflow-y: auto; height: 100%; width: 100%; box-sizing: border-box;"></div>
+                </div>
+            </div>
+
+            <div class="slider-bank">
+                <div style="color:var(--accent); font-size:10px; border-bottom:1px solid #333; padding-bottom:5px;">PRIMARY BARS</div>
+                <div class="adj-row"><span>EXPOSURE</span><input type="range" id="exp" min="-4" max="4" step="0.01" value="0"></div>
+                <div class="adj-row"><span>CONTRAST</span><input type="range" id="con" min="0.5" max="1.5" step="0.01" value="1"></div>
+                <div class="adj-row"><span>PIVOT</span><input type="range" id="piv" min="0.2" max="0.8" step="0.01" value="0.43"></div>
+                <div class="adj-row"><span>SATURATION</span><input type="range" id="sat" min="0" max="2" step="0.01" value="1"></div>
+                <div style="color:var(--accent); font-size:10px; border-bottom:1px solid #333; padding-bottom:5px; margin-top:10px;">CURVE SOFTNESS</div>
+                <div class="adj-row"><span>LOW SOFT</span><input type="range" id="lsoft" min="0" max="1" step="0.01" value="0"></div>
+                <div class="adj-row"><span>HIGH SOFT</span><input type="range" id="hsoft" min="0" max="1" step="0.01" value="0"></div>
+                <div style="color:var(--accent); font-size:10px; border-bottom:1px solid #333; padding-bottom:5px; margin-top:10px;">COLOR BARS</div>
+                <div class="adj-row"><span>TEMP</span><input type="range" id="tem" min="-0.15" max="0.15" step="0.001" value="0"></div>
+                <div class="adj-row"><span>TINT</span><input type="range" id="tin" min="-0.15" max="0.15" step="0.001" value="0"></div>
+                <div class="adj-row"><span>HUE</span><input type="range" id="hue" min="-0.5" max="0.5" step="0.01" value="0"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="panelExpress" class="panel-content active-panel" style="width: 100%; display: flex; flex-direction: column;">
+        <div class="stepper" style="display:flex; justify-content:space-around; padding:15px; background:#222; border-bottom:1px solid #000;">
+            <div class="step-item active" data-step="1">1. 選擇風格 (Styles)</div>
+            <div class="step-item" data-step="2">2. 光影微調 (Feel)</div>
+            <div class="step-item" data-step="3">3. 質感細節 (Detail)</div>
+        </div>
+
+        <div class="step-content active-content" id="ex-step1" style="padding:20px; display:grid; grid-template-columns: repeat(3, 1fr); gap:15px;">
+            <div class="filter-card" data-preset="apple_log" style="background:linear-gradient(45deg, #333, #555); height:80px; display:flex; align-items:center; justify-content:center; cursor:pointer; border-radius:4px; border:1px solid #444;">經典膠片 (Only for AppleLog)</div>
+            <div class="filter-card" data-preset="teal_orange" style="background:linear-gradient(45deg, #333, #555); height:80px; display:flex; align-items:center; justify-content:center; cursor:pointer; border-radius:4px; border:1px solid #444;">青橙色調</div>
+
+        </div>
+
+        <div class="step-content" id="ex-step2" style="padding:20px; display:none; flex-direction:column; gap:15px;">
+            <div class="adj-row"><span>畫面亮度</span><input type="range" class="sync-slider" data-target="exp" min="-2" max="2" step="0.01" value="0"></div>
+            <div class="adj-row"><span>色彩鮮豔</span><input type="range" class="sync-slider" data-target="sat" min="0" max="2" step="0.01" value="1"></div>
+            <div class="adj-row"><span>對比強度</span><input type="range" class="sync-slider" data-target="con" min="0.5" max="1.5" step="0.01" value="1"></div>
+        </div>
+
+        <div class="step-content" id="ex-step3" style="padding:20px; display:none; flex-direction:column; gap:15px;">
+            <div class="adj-row"><span>膠片顆粒</span><input type="range" id="ex-grain" min="0" max="0.1" step="0.01" value="0.03"></div>
+            <button id="goToStudio" class="btn" style="background:var(--accent); color:#000; font-weight:bold;">進入專業版深度調整 →</button>
+        </div>
+    </div>
+</footer>
+
+<video id="v" muted loop playsinline style="display:none"></video>
+
+<script src="static/lutData.js"></script>
+<script>
+const video = document.getElementById('v');
+const canvas = document.getElementById('mainCanvas');
+const gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true });
+const scopeCanvas = document.getElementById('scopeCanvas');
+const sCtx = scopeCanvas.getContext('2d', { willReadFrequently: true });
+let curveTexture = gl.createTexture(); // 建立曲線專用的紋理
+let lutSizeValue = 0;
+let lutTexture = gl.createTexture();
+let params = { lift:[0,0,0], gamma:[1,1,1], gain:[1,1,1], offset:[0,0,0] };
+let isBypass = false;
+let isExporting = false;
+
+const vs = `#version 300 es
+in vec2 p; out vec2 u; void main(){ u=p*0.5+0.5; gl_Position=vec4(p.x, -p.y, 0, 1); }`;
+
+const fs = `#version 300 es
+precision highp float;
+precision highp sampler3D;
+in vec2 u; out vec4 f;
+uniform sampler2D vt, curveTex;
+uniform sampler3D lutTexture;
+uniform float lutSize, con, sat, tem, tin, piv, hue, exp, lsoft, hsoft, bypass;
+uniform vec3 lift, gamma, gain, offset;
+
+// --- 新增電影感相關 Uniforms ---
+uniform float cinematicGrainIntensity; // 膠片顆粒強度
+uniform float cinematicVignetteStrength; // 暗角強度
+uniform float cinematicLookToggle; // 一鍵電影感開關 (0.0 或 1.0)
+
+// HSL 調整數據
+uniform float hslH[8], hslS[8], hslL[8];
+
+// 高精度顏色轉換
+vec3 rgb2hsl(vec3 c){
+    float maxC = max(c.r, max(c.g, c.b)), minC = min(c.r, min(c.g, c.b));
+    float h, s, l = (maxC + minC) / 2.0;
+    if(maxC == minC) h = s = 0.0;
+    else {
+        float d = maxC - minC;
+        s = l > 0.5 ? d / (2.0 - maxC - minC) : d / (maxC + minC);
+        if(maxC == c.r) h = (c.g - c.b) / d + (c.g < c.b ? 6.0 : 0.0);
+        else if(maxC == c.g) h = (c.b - c.r) / d + 2.0;
+        else h = (c.r - c.g) / d + 4.0;
+        h /= 6.0;
+    }
+    return vec3(h, s, l);
+}
+
+float hue2rgb(float p, float q, float t){
+    if(t < 0.0) t += 1.0; if(t > 1.0) t -= 1.0;
+    if(t < 1.0/6.0) return p + (q - p) * 6.0 * t;
+    if(t < 1.0/2.0) return q;
+    if(t < 2.0/3.0) return p + (q - p) * (2.0/3.0 - t) * 6.0;
+    return p;
+}
+
+vec3 hsl2rgb(vec3 c){
+    if(c.y == 0.0) return vec3(c.z);
+    float q = c.z < 0.5 ? c.z * (1.0 + c.y) : c.z + c.y - c.z * c.y;
+    float p = 2.0 * c.z - q;
+    return vec3(hue2rgb(p, q, c.x + 1.0/3.0), hue2rgb(p, q, c.x), hue2rgb(p, q, c.x - 1.0/3.0));
+}
+
+// 輔助 HSV 轉換 (用於全域 Hue/Sat 調整)
+vec3 rgb2hsv(vec3 c){
+    vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+    vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+    vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+    float d = q.x - min(q.w, q.y);
+    return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + 1e-10)), d / (q.x + 1e-10), q.x);
+}
+vec3 hsv2rgb(vec3 c){
+    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
+
+void main(){
+    vec4 t = texture(vt, u);
+    vec3 c = t.rgb;
+    if(bypass > 0.5) { f = vec4(c, 1.0); return; }
+
+    // 1. 基礎曝光與色輪調整
+    c *= pow(2.0, exp);
+    c += offset;
+    c = max(vec3(0.0), c * (1.0 - lift) + lift);
+    c *= gain;
+    c = pow(max(c, 1e-5), 1.0 / max(vec3(0.1), gamma));
+
+    // 2. HSL 特定顏色調整 (色相桶插值)
+    // 在 fs shader 內更新 HSL 段落
+vec3 hsl = rgb2hsl(clamp(c, 0.0, 1.0));
+
+// --- 精確色相校正邏輯 ---
+float h = hsl.x;
+
+// 由於數位黃色 (Hue 0.16) 離綠色太近，我們在這裡對 h 進行非線性變換
+// 這能拉開黃色與綠色的距離，讓黃色滑桿更「準」
+float remapH = h;
+if (h > 0.1 && h < 0.2) {
+    // 針對黃色區域進行收縮
+    remapH = 0.125 + (h - 0.1) * 1.5;
+}
+
+float hIdx = remapH * 8.0;
+int i0 = int(floor(hIdx)) % 8;
+int i1 = (i0 + 1) % 8;
+float w = fract(hIdx);
+
+// 使用更高階的平滑曲線（Quintic），讓顏色影響邊界變得陡峭，減少污染
+float tightW = w * w * w * (w * (w * 6.0 - 15.0) + 10.0);
+
+float dH = mix(hslH[i0], hslH[i1], tightW);
+float dS = mix(hslS[i0], hslS[i1], tightW);
+float dL = mix(hslL[i0], hslL[i1], tightW);
+
+hsl.x = fract(hsl.x + dH);
+hsl.y = clamp(hsl.y + dS, 0.0, 1.0);
+hsl.z = clamp(hsl.z + dL, 0.0, 1.0);
+
+c = hsl2rgb(hsl);
+
+    // 3. 曲線處理
+    vec3 cc = clamp(c, 0.0, 1.0);
+    c.r = texture(curveTex, vec2(cc.r, 0.5)).r;
+    c.g = texture(curveTex, vec2(cc.g, 0.5)).r;
+    c.b = texture(curveTex, vec2(cc.b, 0.5)).r;
+
+    c.r += tem;
+    c.b -= tem;
+    c.g += tin;
+
+    // --- 插入：CURVE SOFTNESS (剪裁緩衝) ---
+    // LOW SOFT: 讓黑區邊界平滑
+    // HIGH SOFT: 讓亮部邊界平滑
+    if(lsoft > 0.0) {
+        c = mix(c, smoothstep(0.0, lsoft, c) * lsoft, step(c, vec3(lsoft)));
+    }
+    if(hsoft > 0.0) {
+        float h_threshold = 1.0 - hsoft;
+        c = mix(c, 1.0 - (smoothstep(0.0, hsoft, 1.0 - c) * hsoft), step(vec3(h_threshold), c));
+    }
+
+    // 4. 對比與飽和度
+    float gray = dot(c, vec3(0.299, 0.587, 0.114));
+    c = (c - piv) * con + piv;
+
+    vec3 hsv = rgb2hsv(clamp(c, 0.0, 1.0));
+    hsv.x = fract(hsv.x + hue);
+    c = hsv2rgb(hsv);
+    c = mix(vec3(dot(c, vec3(0.299, 0.587, 0.114))), c, sat);
+
+    // 5. LUT
+    if (lutSize > 0.0) {
+        vec3 coords = clamp(c, 0.0, 1.0) * ((lutSize - 1.0) / lutSize) + (0.5 / lutSize);
+        c = texture(lutTexture, coords).rgb;
+    }
+
+    f = vec4(c, 1.0);
+
+    if (cinematicLookToggle > 0.5) {
+
+
+        // 2. 膠片顆粒 (Film Grain)
+        // 簡單的隨機數生成器，用於模擬顆粒
+        // 使用 u.x, u.y 和時間 (這裡沒有時間 uniform，可以暫時用一個常數或模擬時間)
+        // 為了簡單，我們使用 fragment 座標作為隨機種子
+        // 更複雜的需要時間或幀數 uniform
+        float rnd = fract(sin(dot(u.xy * 1000.0, vec2(12.9898, 78.233))) * 43758.5453);
+        float grain = (rnd - 0.5) * 2.0 * cinematicGrainIntensity; // 顆粒是 +/- 範圍
+        c += grain; // 添加顆粒
+    }
+    // -----------------------------------------------------------------
+
+    f = vec4(c, 1.0);
+}`;
+
+function mkP(v, f) {
+    const s = (t, src) => {
+        const sh = gl.createShader(t);
+        gl.shaderSource(sh, src);
+        gl.compileShader(sh);
+        if(!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(sh));
+        return sh;
+    };
+    const p = gl.createProgram();
+    gl.attachShader(p, s(gl.VERTEX_SHADER, v));
+    gl.attachShader(p, s(gl.FRAGMENT_SHADER, f));
+    gl.linkProgram(p);
+    return p;
+}
+const prog = mkP(vs, fs); gl.useProgram(prog);
+
+// 在 locs 定義處加入
+const hslLocs = {
+    h: gl.getUniformLocation(prog, "hslH"),
+    s: gl.getUniformLocation(prog, "hslS"),
+    l: gl.getUniformLocation(prog, "hslL")
+};
+
+const locs = {};
+const paramNames = ["vt","curveTex","lift","gamma","gain","offset","con","sat","tem","tin","piv","hue","exp","lsoft","hsoft","bypass", "lutTexture", "lutSize","cinematicGrainIntensity", "cinematicVignetteStrength", "cinematicLookToggle"
+];
+paramNames.forEach(n => locs[n] = gl.getUniformLocation(prog, n));
+
+const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const pL = gl.getAttribLocation(prog, "p"); gl.enableVertexAttribArray(pL); gl.vertexAttribPointer(pL, 2, gl.FLOAT, false, 0, 0);
+
+const vTex = gl.createTexture();
+
+function parseCubeFile(text) {
+    const lines = text.split(/\r?\n/);
+    let data = [], size = 33; // 直接預設為 32
+
+    for (let line of lines) {
+        line = line.trim();
+        if (!line || line.startsWith('#')) continue;
+
+        // 如果文件裡有寫尺寸，則以文件為準
+        if (line.startsWith('LUT_3D_SIZE')) {
+            size = parseInt(line.split(/\s+/)[1]);
+        } else if (/^[-+]?\d/.test(line)) {
+            const p = line.split(/\s+/).filter(x => x.length > 0).map(Number);
+            if (p.length === 3) data.push(...p);
+        }
+    }
+    return { data: new Float32Array(data), size };
+}
+async function uploadLUT(parsed) {
+    let { size, data } = parsed;
+
+    // --- 關鍵修正：明確指定使用插槽 2 ---
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_3D, lutTexture);
+    // ----------------------------------
+
+    if (!size || size < 2) size = 17;
+    const requiredLength = size * size * size * 3;
+    const sanitizedData = new Float32Array(requiredLength);
+
+    // 建議：將預填改為「原色映射」而不是「中性灰」，這樣如果數據不足，畫面才不會灰灰的
+    for(let i=0; i<requiredLength; i++) sanitizedData[i] = 0.5;
+
+    if (data && data.length > 0) {
+        const lengthToCopy = Math.min(data.length, requiredLength);
+        sanitizedData.set(data.subarray(0, lengthToCopy));
+    }
+
+    // 重新設置參數，確保套用到正確的 TEXTURE2 上
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+
+    try {
+        gl.texImage3D(
+            gl.TEXTURE_3D, 0, gl.RGB16F,
+            size, size, size, 0,
+            gl.RGB, gl.FLOAT, sanitizedData
+        );
+        lutSizeValue = size;
+        console.log(`✅ LUT 強制套用成功！Size: ${size}`);
+    } catch (e) {
+        console.error("❌ WebGL 最終上傳失敗:", e);
+    }
+}
+document.getElementById('lutFi').onchange = (e) => {
+    const r = new FileReader();
+    r.onload = (ev) => uploadLUT(parseCubeFile(ev.target.result));
+    r.readAsText(e.target.files[0]);
+};
+
+document.getElementById('lutSelect').onchange = async (e) => {
+    const k = e.target.value;
+    if (!k) { lutSizeValue = 0; return; }
+    if (typeof LUT_PRESETS !== 'undefined' && LUT_PRESETS[k]) {
+        const b = atob(LUT_PRESETS[k]);
+        const txt = new TextDecoder().decode(Uint8Array.from(b, c => c.charCodeAt(0)));
+        uploadLUT(parseCubeFile(txt));
+    }
+};
+
+function handleWheel(id, type) {
+    const el = document.getElementById(id), knob = el.querySelector('.knob');
+    let down = false;
+    const up = (e) => {
+        if(!down || isExporting) return;
+        const r = el.getBoundingClientRect();
+        const x = Math.max(-1, Math.min(1, (e.clientX - r.left - r.width/2) / (r.width/2)));
+        const y = Math.max(-1, Math.min(1, (e.clientY - r.top - r.height/2) / (r.height/2)));
+        knob.style.left = (x * 50 + 50) + '%'; knob.style.top = (y * 50 + 50) + '%';
+        if(type==='lift') params.lift = [x*0.1, -y*0.1, -x*0.05];
+        if(type==='gamma') params.gamma = [1+x*0.4, 1-y*0.4, 1-x*0.4];
+        if(type==='gain') params.gain = [1+x*0.8, 1-y*0.8, 1-x*0.8];
+        if(type==='offset') params.offset = [x*0.1, -y*0.1, 0.05];
+    };
+    el.onmousedown = () => down = true;
+    window.addEventListener('mousemove', up);
+    window.addEventListener('mouseup', () => down = false);
+}
+['liftW','gammaW','gainW','offsetW'].forEach(id => handleWheel(id, id.replace('W','')));
+
+function drawParade() {
+    if (video.readyState < 2) return;
+    sCtx.drawImage(canvas, 0, 0, scopeCanvas.width, scopeCanvas.height);
+    const d = sCtx.getImageData(0, 0, scopeCanvas.width, scopeCanvas.height).data;
+    sCtx.fillStyle = '#050505'; sCtx.fillRect(0, 0, scopeCanvas.width, scopeCanvas.height);
+    sCtx.globalCompositeOperation = 'lighter';
+    for(let x=0; x<scopeCanvas.width; x+=2) {
+        for(let y=0; y<scopeCanvas.height; y+=5) {
+            const i = (y*scopeCanvas.width+x)*4;
+            sCtx.fillStyle = '#f22'; sCtx.fillRect(x/3, scopeCanvas.height-(d[i]/255)*scopeCanvas.height, 1, 1);
+            sCtx.fillStyle = '#2f2'; sCtx.fillRect(scopeCanvas.width/3+x/3, scopeCanvas.height-(d[i+1]/255)*scopeCanvas.height, 1, 1);
+            sCtx.fillStyle = '#22f'; sCtx.fillRect(2*scopeCanvas.width/3+x/3, scopeCanvas.height-(d[i+2]/255)*scopeCanvas.height, 1, 1);
+        }
+    }
+    sCtx.globalCompositeOperation = 'source-over';
+}
+let frameCnt = 0;
+function render() {
+    if (video.readyState >= 2) {
+        if(canvas.width !== video.videoWidth) {
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+            gl.viewport(0, 0, canvas.width, canvas.height);
+            document.getElementById('res').innerText = `${canvas.width}x${canvas.height}`;
+        }
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, vTex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.uniform1i(locs.vt, 0);
+
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, curveTexture);
+        gl.uniform1i(locs.curveTex, 1);
+
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_3D, lutTexture);
+        gl.uniform1i(locs.lutTexture, 2);
+
+        gl.uniform1f(locs.bypass, isBypass ? 1.0 : 0.0);
+        gl.uniform1f(locs.exp, parseFloat(document.getElementById('exp').value));
+        gl.uniform1f(locs.lsoft, parseFloat(document.getElementById('lsoft').value));
+        gl.uniform1f(locs.hsoft, parseFloat(document.getElementById('hsoft').value));
+        gl.uniform3fv(locs.lift, params.lift); gl.uniform3fv(locs.gamma, params.gamma);
+        gl.uniform3fv(locs.gain, params.gain); gl.uniform3fv(locs.offset, params.offset);
+        gl.uniform1f(locs.con, parseFloat(document.getElementById('con').value));
+        gl.uniform1f(locs.sat, parseFloat(document.getElementById('sat').value));
+        gl.uniform1f(locs.tem, parseFloat(document.getElementById('tem').value));
+        gl.uniform1f(locs.tin, parseFloat(document.getElementById('tin').value));
+        gl.uniform1f(locs.piv, parseFloat(document.getElementById('piv').value));
+        gl.uniform1f(locs.hue, parseFloat(document.getElementById('hue').value));
+
+        gl.uniform1f(locs.lutSize, lutSizeValue);
+
+        gl.uniform1fv(hslLocs.h, hslData.h);
+        gl.uniform1fv(hslLocs.s, hslData.s);
+        gl.uniform1fv(hslLocs.l, hslData.l);
+
+        // --- 新增：電影感 Uniforms ---
+        gl.uniform1f(locs.cinematicGrainIntensity, cinematicSettings.grainIntensity);
+        gl.uniform1f(locs.cinematicVignetteStrength, cinematicSettings.vignetteStrength);
+        gl.uniform1f(locs.cinematicLookToggle, cinematicSettings.enabled ? 1.0 : 0.0);
+
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        frameCnt++;
+    if (frameCnt % 4 === 0) {
+        drawParade();
+    }
+    }
+    requestAnimationFrame(render);
+}
+render();
+
+document.getElementById('fi').onchange = (e) => {
+    video.src = URL.createObjectURL(e.target.files[0]);
+    video.play();
+};
+document.getElementById('bypassBtn').onclick = () => {
+    isBypass = !isBypass;
+    document.getElementById('bypassBtn').innerText = isBypass ? "BYPASS (ON)" : "BYPASS (OFF)";
+    document.getElementById('bypassBtn').classList.toggle('active', isBypass);
+};
+document.getElementById('resetBtn').onclick = () => location.reload();
+window.onclick = () => { if(video.paused && !isExporting) video.play(); };
+// 分頁切換邏輯
+const tWheels = document.getElementById('tabWheels');
+const tCurves = document.getElementById('tabCurves');
+const pWheels = document.getElementById('panelWheels');
+const pCurves = document.getElementById('panelCurves');
+
+tWheels.onclick = () => {
+    tWheels.classList.add('active');
+    tCurves.classList.remove('active');
+    tWheels.style.opacity = "1";
+    tCurves.style.opacity = "0.3";
+    pWheels.classList.add('active-panel');
+    pCurves.classList.remove('active-panel');
+};
+
+tCurves.onclick = () => {
+    tCurves.classList.add('active');
+    tWheels.classList.remove('active');
+    tCurves.style.opacity = "1";
+    tWheels.style.opacity = "0.3";
+    pCurves.classList.add('active-panel');
+    pWheels.classList.remove('active-panel');
+    // 初始化繪製曲線畫布 (之後實作)
+    if(window.initCurveUI) window.initCurveUI();
+};
+// 曲線數據：預設為三個點 (線性)
+// x: 0-255 (輸入), y: 0-255 (輸出)
+let curvePoints = [
+    {x: 0, y: 255},   // 黑點
+    {x: 128, y: 128}, // 中間調
+    {x: 255, y: 0}    // 白點
+];
+
+const cUI = document.getElementById('curveUI');
+const cCtx = cUI.getContext('2d');
+let draggingPoint = null;
+
+// 初始化與重置按鈕
+document.getElementById('resetCurveBtn').onclick = () => {
+    curvePoints = [{x: 0, y: 255}, {x: 128, y: 128}, {x: 255, y: 0}];
+    drawCurveUI();
+};
+// 單調三次樣條插值演算法
+function getMonotoneCurveY(x, points) {
+    const n = points.length;
+    if (n < 2) return 255 - x;
+
+    const xs = points.map(p => p.x);
+    const ys = points.map(p => p.y);
+
+    // 1. 計算斜率
+    const ms = new Array(n).fill(0);
+    const delta = new Array(n - 1);
+    for (let i = 0; i < n - 1; i++) {
+        delta[i] = (ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i] || 1);
+    }
+
+    // 2. 計算各點切線
+    ms[0] = delta[0];
+    ms[n - 1] = delta[n - 2];
+    for (let i = 1; i < n - 1; i++) {
+        const m = (delta[i - 1] + delta[i]) / 2;
+        if (delta[i - 1] * delta[i] <= 0) {
+            ms[i] = 0;
+        } else {
+            ms[i] = m;
+        }
+    }
+
+    // 3. 找到區間並插值
+    let i = 0;
+    while (i < n - 1 && x > xs[i + 1]) i++;
+
+    const h = xs[i + 1] - xs[i] || 1;
+    const t = (x - xs[i]) / h;
+    const t2 = t * t;
+    const t3 = t2 * t;
+
+    return (2 * t3 - 3 * t2 + 1) * ys[i] +
+           (t3 - 2 * t2 + t) * h * ms[i] +
+           (-2 * t3 + 3 * t2) * ys[i + 1] +
+           (t3 - t2) * h * ms[i + 1];
+}
+function drawCurveUI() {
+    cCtx.clearRect(0, 0, 256, 256);
+
+    cCtx.strokeStyle = '#db9612';
+    cCtx.lineWidth = 2;
+    cCtx.beginPath();
+
+    // 繪製平滑路徑
+    for (let i = 0; i <= 256; i++) {
+        const y = getMonotoneCurveY(i, curvePoints);
+        if (i === 0) cCtx.moveTo(i, y);
+        else cCtx.lineTo(i, y);
+    }
+    cCtx.stroke();
+
+    // 繪製控制點
+    curvePoints.forEach((p, idx) => {
+        cCtx.fillStyle = (draggingPoint === idx) ? '#fff' : '#db9612';
+        cCtx.beginPath();
+        cCtx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+        cCtx.fill();
+    });
+}
+
+// 鼠標交互處理
+cUI.onmousedown = (e) => {
+    const r = cUI.getBoundingClientRect();
+    const mx = e.clientX - r.left;
+    const my = e.clientY - r.top;
+
+    // 檢查是否點擊到現有的點
+    draggingPoint = curvePoints.findIndex(p => Math.hypot(p.x - mx, p.y - my) < 10);
+
+    // 如果沒點到點，就在該位置新增一個點 (除了邊界)
+    if (draggingPoint === -1) {
+        const newPoint = { x: mx, y: my };
+        curvePoints.push(newPoint);
+        curvePoints.sort((a, b) => a.x - b.x); // 保持 X 軸排序
+        draggingPoint = curvePoints.indexOf(newPoint);
+    }
+    drawCurveUI();
+};
+
+window.onmousemove = (e) => {
+    if (draggingPoint === null) return;
+    const r = cUI.getBoundingClientRect();
+    let mx = e.clientX - r.left;
+    let my = e.clientY - r.top;
+
+    // 限制範圍
+    mx = Math.max(0, Math.min(255, mx));
+    my = Math.max(0, Math.min(255, my));
+
+    // 邊界點不允許改變 X 軸
+    if (draggingPoint === 0) mx = 0;
+    if (draggingPoint === curvePoints.length - 1) mx = 255;
+
+    curvePoints[draggingPoint] = { x: mx, y: my };
+
+    // 更新數據顯示
+    document.getElementById('curveIn').innerText = Math.round(mx);
+    document.getElementById('curveOut').innerText = Math.round(255 - my);
+
+    drawCurveUI();
+    updateCurveTexture(); // 實時更新 GPU 紋理
+};
+
+window.onmouseup = () => { draggingPoint = null; drawCurveUI(); };
+function updateCurveTexture() {
+    const data = new Uint8Array(256);
+
+    for (let i = 0; i < 256; i++) {
+        // 使用單調樣條插值計算 y 值
+        const y = getMonotoneCurveY(i, curvePoints);
+        // 限制在 0-255 範圍並反轉座標 (因為 UI 的 0 在頂部)
+        data[i] = Math.max(0, Math.min(255, 255 - y));
+    }
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, curveTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, 256, 1, 0, gl.RED, gl.UNSIGNED_BYTE, data);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+}
+// 在你的 script 標籤中定義變數
+let mediaRecorder;
+let recordedChunks = [];
+let audioCtx; // 全域變數以利重複使用
+
+async function exportVideo() {
+    const exportBtn = document.getElementById('exportBtn');
+    if (isExporting) return;
+
+    // --- 1. 鎖定全域 UI ---
+    document.body.classList.add('is-exporting');
+
+    video.pause();
+    video.currentTime = 0;
+    video.loop = false; // 重要：錄製時關閉循環
+
+    // 初始化 Audio (保持不變)
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    await audioCtx.resume();
+
+    const canvasStream = canvas.captureStream(30);
+
+    if (!window.audioSource) {
+        window.audioSource = audioCtx.createMediaElementSource(video);
+        window.audioDest = audioCtx.createMediaStreamDestination();
+        window.audioSource.connect(window.audioDest);
+        window.audioSource.connect(audioCtx.destination);
+    }
+
+    const combinedStream = new MediaStream([
+        ...canvasStream.getVideoTracks(),
+        ...window.audioDest.stream.getAudioTracks()
+    ]);
+
+    mediaRecorder = new MediaRecorder(combinedStream, {
+        mimeType: 'video/webm;codecs=vp9,opus',
+        videoBitsPerSecond: 8000000
+    });
+
+    recordedChunks = [];
+    mediaRecorder.ondataavailable = e => { if(e.data.size > 0) recordedChunks.push(e.data); };
+
+    // 停止後的處理（保持不變）
+    mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Graded_Export_${Date.now()}.webm`;
+        a.click();
+        isExporting = false;
+        exportBtn.innerText = "EXPORT";
+        exportBtn.style.background = "#285";
+        video.loop = true; // 錄完後恢復循環預覽
+        // --- 2. 解除鎖定 ---
+        document.body.classList.remove('is-exporting');
+    };
+
+    // --- 強化停止邏輯 ---
+    const stopRecording = () => {
+        if (mediaRecorder.state !== "inactive") {
+            mediaRecorder.stop();
+            video.pause();
+            console.log("錄製已自動停止");
+        }
+    };
+
+    video.onended = stopRecording;
+
+    // 額外保險：如果影片播完了但沒觸發 ended，強制比對時間
+    const checkEnd = setInterval(() => {
+        if (isExporting && video.currentTime >= video.duration - 0.1) {
+            stopRecording();
+            clearInterval(checkEnd);
+        }
+    }, 500);
+
+    // 開始
+    isExporting = true;
+    exportBtn.innerText = "RECORDING...";
+    exportBtn.style.background = "#d33";
+
+    video.play().then(() => {
+        mediaRecorder.start();
+    });
+    // 在 exportVideo 函式內，video.play() 之後加入：
+const updateExportProgress = () => {
+    if (isExporting && video.duration) {
+        const progress = Math.round((video.currentTime / video.duration) * 100);
+        exportBtn.innerText = `RECORDING ${progress}%`;
+
+        if (isExporting) {
+            requestAnimationFrame(updateExportProgress);
+        }
+    }
+};
+updateExportProgress();
+}
+
+// 綁定事件
+document.getElementById('exportBtn').addEventListener('click', exportVideo);
+// 取得 UI 元素
+const playPauseBtn = document.getElementById('playPauseBtn');
+const progressBar = document.getElementById('progressBar');
+const timeDisplay = document.getElementById('timeDisplay');
+const canvasEl = document.getElementById('mainCanvas');
+
+// 初始化：關閉 loop 以符合 QuickTime 體驗
+video.loop = false;
+
+// 格式化時間 (MM:SS)
+function formatTime(seconds) {
+    if (isNaN(seconds)) return "00:00";
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+// 更新進度條
+video.ontimeupdate = () => {
+    if (!isExporting) {
+        const percent = (video.currentTime / video.duration) * 100;
+        progressBar.value = percent || 0;
+        timeDisplay.innerText = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+    }
+};
+
+// 點擊畫面切換播放/暫停
+canvasEl.onclick = () => {
+    if (isExporting) return;
+    if (video.paused) video.play();
+    else video.pause();
+};
+
+// 拖動進度條
+progressBar.oninput = () => {
+    if (isExporting) return;
+    const time = (progressBar.value / 100) * video.duration;
+    video.currentTime = time;
+};
+
+// 播放按鈕圖示切換
+video.onplay = () => playPauseBtn.innerText = "Ⅱ";
+video.onpause = () => playPauseBtn.innerText = "▶";
+playPauseBtn.onclick = (e) => { e.stopPropagation(); canvasEl.onclick(); };
+
+// 播放結束時恢復圖示
+video.onended = () => {
+    if (!isExporting) playPauseBtn.innerText = "▶";
+};
+
+// 建立一個物件儲存 HSL 數據
+let hslValues = {
+    h: new Float32Array(8).fill(0),
+    s: new Float32Array(8).fill(0),
+    l: new Float32Array(8).fill(0)
+};
+
+// 監聽所有 HSL 滑桿
+document.querySelectorAll('.hsl-input').forEach(input => {
+    input.oninput = (e) => {
+        const colorIdx = parseInt(e.target.dataset.color);
+        const type = e.target.dataset.type;
+        hslValues[type][colorIdx] = parseFloat(e.target.value);
+    };
+});
+
+// 在 render 循環中更新 Uniform
+// gl.uniform3fv(locs.hslHue, hslValues.h); // 簡化傳遞方式
+// 初始數據
+let hslData = { h: new Float32Array(8), s: new Float32Array(8), l: new Float32Array(8) };
+
+// 監聽所有 HSL 滑桿
+document.addEventListener('input', (e) => {
+    if(e.target.classList.contains('hsl-input')) {
+        const i = parseInt(e.target.dataset.color);
+        const type = e.target.dataset.type;
+        hslData[type][i] = parseFloat(e.target.value);
+    }
+});
+
+// 在 render 函數中傳遞 Uniform
+gl.uniform1fv(gl.getUniformLocation(prog, "hslH"), hslData.h);
+gl.uniform1fv(gl.getUniformLocation(prog, "hslS"), hslData.s);
+gl.uniform1fv(gl.getUniformLocation(prog, "hslL"), hslData.l);
+// A. 介面切換邏輯
+const tabs = {
+    'tabWheels': 'panelWheels',
+    'tabCurves': 'panelCurves',
+    'tabHSL': 'panelHSL'
+};
+
+Object.keys(tabs).forEach(tabId => {
+    document.getElementById(tabId).onclick = function() {
+        // 重置所有 Tab 透明度
+        Object.keys(tabs).forEach(id => {
+            document.getElementById(id).style.opacity = "0.3";
+            document.getElementById(id).classList.remove('active');
+            document.getElementById(tabs[id]).classList.remove('active-panel');
+        });
+        // 激活當前 Tab
+        this.style.opacity = "1";
+        this.classList.add('active');
+        document.getElementById(tabs[tabId]).classList.add('active-panel');
+
+        // 如果是曲線面板則初始化
+        if(tabId === 'tabCurves' && window.initCurveUI) window.initCurveUI();
+    };
+});
+
+// B. 動態生成 HSL 8 色 UI
+const hslColors = [
+    { name: 'RED', color: '#f44' },     // Index 0 (0°)
+    { name: 'ORANGE', color: '#f94' },  // Index 1 (45°)
+    { name: 'YELLOW', color: '#ff4' },  // Index 2 (90°) - 現在會更集中
+    { name: 'GREEN', color: '#4f4' },   // Index 3 (135°)
+    { name: 'CYAN', color: '#4ff' },    // Index 4 (180°)
+    { name: 'BLUE', color: '#44f' },    // Index 5 (225°)
+    { name: 'PURPLE', color: '#94f' },  // Index 6 (270°)
+    { name: 'MAGENTA', color: '#f4f' }  // Index 7 (315°)
+];
+
+const hslContainer = document.getElementById('hslContainer');
+hslColors.forEach((col, i) => {
+    hslContainer.innerHTML += `
+        <div class="hsl-group" style="border: 1px solid #333; padding: 10px; border-top: 3px solid ${col.color}; background: #1a1a1a; border-radius: 4px;">
+            <div style="font-size: 11px; margin-bottom: 8px; color:${col.color}; font-weight:bold;">${col.name}</div>
+            <div class="adj-row"><span>H</span><input type="range" class="hsl-input" data-color="${i}" data-type="h" min="-0.1" max="0.1" step="0.001" value="0"></div>
+            <div class="adj-row"><span>S</span><input type="range" class="hsl-input" data-color="${i}" data-type="s" min="-0.5" max="0.5" step="0.01" value="0"></div>
+            <div class="adj-row"><span>L</span><input type="range" class="hsl-input" data-color="${i}" data-type="l" min="-0.5" max="0.5" step="0.01" value="0"></div>
+        </div>`;
+});
+
+// --- 全局電影感設置 ---
+let cinematicSettings = {
+    enabled: false,
+    grainIntensity: 0.04,  // 預設膠片顆粒強度
+    vignetteStrength: 0, // 預設暗角強度 (值越大，暗角中心越小)
+    // 這些是預設的調色參數，可以根據你喜歡的「電影感」來調整
+    // 例如：增加對比，暖化高光，冷化陰影
+    exposure: 0.1,
+    contrast: 1.15,
+    pivot: 0.4,
+    saturation: 1.1,
+    lift: [0.03, 0.0, 0.03], // 輕微藍色陰影
+    gamma: [1.1, 1.0, 0.9],  // 暖化中間調
+    gain: [1.05, 1.02, 1.0], // 暖化高光
+    offset: [0.0, 0.0, 0.0]
+};
+
+document.getElementById('cinematicBtn').onclick = async () => {
+    cinematicSettings.enabled = !cinematicSettings.enabled;
+    const btn = document.getElementById('cinematicBtn');
+    const lutSelector = document.getElementById('lutSelect');
+
+    if (cinematicSettings.enabled) {
+        btn.innerText = "CINEMATIC LOOK (ON)";
+        btn.classList.add('active');
+
+        // --- STEP 1: 自動套用 Apple Log to Film LUT ---
+        // 假設你的下拉選單中 Apple Log 的 value 是 'apple_log_to_film'
+        // 或者直接調用你現有的 LUT 載入邏輯
+        const targetLUT = 'Applelog_Classic Neg'; // 請確保這與你的 LUT_PRESETS key 一致
+        if (lutSelector) {
+            lutSelector.value = targetLUT;
+            // 觸發原始的 LUT 載入函式
+            const event = new Event('change');
+            lutSelector.dispatchEvent(event);
+        }
+
+        // --- STEP 2: 自動調整曝光與飽和度 ---
+        // 電影感的 Log 還原通常需要稍微拉高曝光與飽和度
+        const autoExp = 0.25;
+        const autoSat = 1.25;
+        const autoCon = 1.15;
+
+        document.getElementById('exp').value = autoExp;
+        document.getElementById('sat').value = autoSat;
+        document.getElementById('con').value = autoCon;
+
+
+
+        // 更新 UI 旋鈕位置
+        if (window.updateAllWheelsUI) updateAllWheelsUI();
+
+    } else {
+        // 恢復預設
+        btn.innerText = "CINEMATIC LOOK";
+        btn.classList.remove('active');
+
+        // 重置 LUT
+        lutSelector.value = "";
+        lutSizeValue = 0;
+
+        // 重置參數
+        document.getElementById('exp').value = 0;
+        document.getElementById('sat').value = 1;
+        document.getElementById('con').value = 1;
+        params.lift = [0,0,0];
+        params.gamma = [1,1,1];
+        params.gain = [1,1,1];
+        if (window.updateAllWheelsUI) updateAllWheelsUI();
+    }
+};
+
+// --- 你需要實現這個函數來更新所有色輪的 UI ---
+function updateAllWheelsUI() {
+    // 這個函數會根據 params.lift, params.gamma, params.gain, params.offset
+    // 來更新每個色輪的 knob 位置
+    // 基本上是 handleWheel 函數的反向操作
+    function updateKnobPosition(wheelId, colorParam, scaleX, scaleY) {
+        const el = document.getElementById(wheelId);
+        if (!el) return; // 確保元素存在
+        const knob = el.querySelector('.knob');
+        const x = colorParam[0] / scaleX;
+        const y = -colorParam[1] / scaleY; // y 軸可能是反向的
+        knob.style.left = (x * 50 + 50) + '%';
+        knob.style.top = (y * 50 + 50) + '%';
+    }
+
+    updateKnobPosition('liftW', params.lift, 0.1, 0.1);
+    updateKnobPosition('gammaW', [params.gamma[0]-1, 1-params.gamma[1], 1-params.gamma[2]], 0.4, 0.4); // gamma 轉換有點特殊
+    updateKnobPosition('gainW', [params.gain[0]-1, 1-params.gain[1], 1-params.gain[2]], 0.8, 0.8);
+    updateKnobPosition('offsetW', params.offset, 0.1, 0.1);
+
+    // 其他滑桿也需要更新
+    document.getElementById('exp').value = cinematicSettings.enabled ? cinematicSettings.exposure : 0;
+    document.getElementById('con').value = cinematicSettings.enabled ? cinematicSettings.contrast : 1;
+    document.getElementById('piv').value = cinematicSettings.enabled ? cinematicSettings.pivot : 0.43;
+    document.getElementById('sat').value = cinematicSettings.enabled ? cinematicSettings.saturation : 1;
+}
+
+// --- 1. 模式切換邏輯 ---
+const btnExpress = document.getElementById('btnExpress');
+const btnStudio = document.getElementById('btnStudio');
+const panelExpress = document.getElementById('panelExpress');
+const panelStudio = document.getElementById('panelStudio');
+const tabHeader = document.querySelector('.tab-bar'); // 專業版的頁籤
+
+btnExpress.onclick = () => {
+    btnExpress.classList.add('active');
+    btnStudio.classList.remove('active');
+    panelExpress.classList.add('active-panel');
+    panelStudio.classList.remove('active-panel');
+    tabHeader.style.display = 'none'; // 快編時隱藏專業頁籤
+};
+
+btnStudio.onclick = () => {
+    btnStudio.classList.add('active');
+    btnExpress.classList.remove('active');
+    panelStudio.classList.add('active-panel');
+    panelExpress.classList.remove('active-panel');
+    tabHeader.style.display = 'flex';
+};
+
+// --- 2. 步驟導航邏輯 ---
+document.querySelectorAll('.step-item').forEach(item => {
+    item.onclick = () => {
+        document.querySelectorAll('.step-item').forEach(i => i.classList.remove('active'));
+        document.querySelectorAll('.step-content').forEach(c => c.style.display = 'none');
+
+        item.classList.add('active');
+        document.getElementById('ex-step' + item.dataset.step).style.display = 'flex';
+    };
+});
+
+// --- 3. 濾鏡預設值與連動 ---
+const expressPresets = {
+    apple_log: { exp: 0.25, sat: 1.3, con: 1.15, lut: 'Applelog_Classic Neg' },
+    warm_gold: { exp: 0.1, sat: 1.2, con: 1.1, lift: [0.02, 0, 0] },
+    noir_black: { exp: 0.3, sat: 0, con: 1.4, lut: '' },
+    teal_orange: { exp: 0.2, sat: 1.2, con: 1.1, lut: 'teal_orange' }, // 新增這行
+
+
+};
+
+document.querySelectorAll('.filter-card').forEach(card => {
+    card.onclick = () => {
+        const p = expressPresets[card.dataset.preset];
+
+        // 自動套用 LUT
+        if(p.lut) {
+            const sel = document.getElementById('lutSelect');
+            sel.value = p.lut;
+            sel.dispatchEvent(new Event('change'));
+        }
+
+        // 同步所有專業滑桿
+        document.getElementById('exp').value = p.exp;
+        document.getElementById('sat').value = p.sat;
+        document.getElementById('con').value = p.con;
+
+        // 觸發一次更新
+        if (window.updateAllWheelsUI) updateAllWheelsUI();
+
+        // 自動跳到第二步
+        document.querySelector('.step-item[data-step="2"]').click();
+    };
+});
+
+// --- 4. 數值雙向同步 (快編滑桿 -> 專業滑桿) ---
+document.querySelectorAll('.sync-slider').forEach(slider => {
+    slider.oninput = () => {
+        const targetId = slider.dataset.target;
+        const targetSlider = document.getElementById(targetId);
+        targetSlider.value = slider.value;
+        // 這裡可以手動調用一次 render 或者等待 requestAnimationFrame
+    };
+});
+
+document.getElementById('goToStudio').onclick = () => btnStudio.click();
+// 在代碼最後面加入
+updateCurveTexture();
+drawCurveUI();
+render();
+</script>
+</body>
+</html>
